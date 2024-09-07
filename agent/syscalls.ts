@@ -69,6 +69,17 @@ function formatArguments(syscall: Syscall, cpuContext: Arm64CpuContext) {
     return result;
 }
 
+function getStringLength(address:NativePointer) {
+    var length = 0;
+    
+    // Iterate through memory, byte by byte, until we hit the null terminator
+    while (address.add(length).readU8() !== 0) {
+        length++;
+    }
+    
+    return length;
+}
+
 export function printSyscall(cpuContext: CpuContext) {
     /*
         https://www.theiphonewiki.com/wiki/Kernel_Syscalls#Note_on_these
@@ -89,13 +100,35 @@ export function printSyscall(cpuContext: CpuContext) {
     }
 
     log(`${syscall.name}(${formatArguments(syscall, context)})`);
-
-    if (Config.verbose) {
-        let backtrace = Thread.backtrace(cpuContext, Config.syscallLogBacktracerType).map(DebugSymbol.fromAddress);
-
-        for (let i in backtrace)
-            console.log(backtrace[i]);
+    if(syscall.name.indexOf("access") >= 0) {
+        console.log("x0 = " + context.x0)
+        console.log("x1 = " + context.x1)
+        let str_ptr = context.x0 as NativePointer
+        let str = (str_ptr.readCString() as string)
+        if (str.indexOf("/sbin/mount") < 0 && str.indexOf("/cores") < 0 && str.indexOf("/sbin") < 0)
+        {
+            let str_len = getStringLength((context.x0))
+            console.log("str_len = " + str_len)
+    
+            var newString = "ModifiedString";
+    
+            // Convert the new string to an ArrayBuffer
+            var newStringBuffer = Memory.allocUtf8String(newString);
+    
+            // Write the new string to the memory at the specified address
+            Memory.copy(context.x0, newStringBuffer, newString.length + 1); 
+        }
+         
+        // console.log("access " + hexdump(context.x0, {
+        //     length:0x40
+        // }))
     }
+    // if (Config.verbose) {
+    //     let backtrace = Thread.backtrace(cpuContext, Config.syscallLogBacktracerType).map(DebugSymbol.fromAddress);
+
+    //     for (let i in backtrace)
+    //         console.log(backtrace[i]);
+    // }
 }
 
 /*
